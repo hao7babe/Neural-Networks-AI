@@ -1,5 +1,3 @@
-Here's a description of the most commonly used activation functions in neural networks:
-
 1. **Linear Activation Function**:
    - **Equation**: \( f(x) = x \)
    - **Description**: The output is directly proportional to the input, making it essentially a straight line. While simple, it's not commonly used in hidden layers of neural networks because it doesn't introduce non-linearity. Without non-linearity, the network cannot learn complex patterns.
