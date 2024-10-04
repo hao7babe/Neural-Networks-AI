@@ -7,70 +7,129 @@
 # Do not get disappointed if you face hardship in training the Perceptron. Try to resolve the problems, consult with the TA, and collect the unresolved problems for a discussion in the next class.
 
 import numpy as np
-from keras.datasets import mnist
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
+import os
+import random
 
-class Perceptron:
-    def __init__(self, input_size, num_classes):
-        self.weights = np.random.randn(input_size, num_classes)  
-        self.bias = np.random.randn(num_classes)  
+# PART 1: Generate Grayscale Digit Images (20x20)
+def generate_digit_images():
+    digits = list(range(10))
+    for digit in digits:
+        for i in range(10):
+            img = Image.new('L', (20, 20), color=255)  # 'L' mode for grayscale
+            draw = ImageDraw.Draw(img)
 
-    def softmax(self, z):
-        exp_z = np.exp(z - np.max(z)) 
-        return exp_z / np.sum(exp_z)
+            # Draw the digit in the center with slight randomness
+            x_offset = random.randint(1, 5)
+            y_offset = random.randint(1, 5)
+            font_size = random.randint(12, 16)
+            draw.text((x_offset, y_offset), str(digit), fill=0)
 
-    def forward(self, x):
-        z = np.dot(x, self.weights) + self.bias 
-        return self.softmax(z)
+            img.save(f'digits/digit_{digit}_{i}.png')
 
-    def loss(self, y_pred, y_true):
-        return -np.sum(y_true * np.log(y_pred + 1e-9))  
+# PART 2: Generate Test Images (Without Labels)
+def generate_test_images():
+    for i in range(20):  # Generate 20 test images
+        img = Image.new('L', (20, 20), color=255)
+        draw = ImageDraw.Draw(img)
 
-    def backward(self, x, y_true, y_pred, lr):
-        dz = y_pred - y_true
-        dw = np.outer(x, dz)  
-        db = dz  
-        self.weights -= lr * dw
-        self.bias -= lr * db
+        digit = random.choice(list(range(10)))
+        x_offset = random.randint(1, 5)
+        y_offset = random.randint(1, 5)
+        font_size = random.randint(12, 16)
+        draw.text((x_offset, y_offset), str(digit), fill=0)
 
-    def train(self, X, y, epochs=1000, lr=0.01):
-        for epoch in range(epochs):
-            total_loss = 0
-            for i in range(len(X)):
-                y_pred = self.forward(X[i])
-                total_loss += self.loss(y_pred, y[i])
-                self.backward(X[i], y[i], y_pred, lr)
-            if epoch % 100 == 0:
-                print(f"Epoch {epoch}, Loss: {total_loss / len(X)}")
+        img.save(f'test_digits/test_image_{i}.png')
 
-def one_hot_encode(y, num_classes):
-    return np.eye(num_classes)[y]
+# PART 3: Activation Functions
+def sigmoid(z):
+    return 1 / (1 + np.exp(-z))
 
-def load_mnist_data():
-    (X_train, y_train), (X_test, y_test) = mnist.load_data()
+def sigmoid_derivative(z):
+    return sigmoid(z) * (1 - sigmoid(z))
 
-    # Resize images from 28x28 to 20x20 and flatten them
-    X_train_resized = np.array([np.array(Image.fromarray(img).resize((20, 20))).flatten() for img in X_train])
-    X_test_resized = np.array([np.array(Image.fromarray(img).resize((20, 20))).flatten() for img in X_test])
+# PART 4: Loss Function (Mean Squared Error)
+def mse_loss(y_true, y_pred):
+    return np.mean((y_true - y_pred) ** 2)
 
-    # Normalize the pixel values
-    X_train_resized = X_train_resized / 255.0
-    X_test_resized = X_test_resized / 255.0
+# PART 5: Initialize Weights and Biases
+def initialize_parameters(input_size, output_size):
+    W = np.random.randn(output_size, input_size) * 0.01  # Transmission matrix (weights)
+    b = np.zeros((output_size, 1))  # Bias
+    return W, b
 
-    return X_train_resized, y_train, X_test_resized, y_test
+# PART 6: Forward Propagation
+def forward_propagation(X, W, b):
+    Z = np.dot(W, X) + b  # Weighted sum
+    A = sigmoid(Z)  # Activation function
+    return A, Z
 
+# PART 7: Backward Propagation
+def backward_propagation(X, Y, A, W, b, Z, learning_rate):
+    m = X.shape[1]  # Number of samples
+    dZ = A - Y  # Derivative of loss w.r.t Z
+    dW = np.dot(dZ, X.T) / m  # Gradient of weights
+    db = np.sum(dZ, axis=1, keepdims=True) / m  # Gradient of bias
+    
+    # Update weights and biases
+    W = W - learning_rate * dW
+    b = b - learning_rate * db
+    return W, b
+
+# PART 8: Training the Perceptron
+def train_perceptron(X_train, Y_train, input_size, output_size, learning_rate=0.01, epochs=1000):
+    W, b = initialize_parameters(input_size, output_size)
+    
+    for epoch in range(epochs):
+        # Forward propagation
+        A, Z = forward_propagation(X_train, W, b)
+        
+        # Compute loss
+        loss = mse_loss(Y_train, A)
+        
+        # Backward propagation and update
+        W, b = backward_propagation(X_train, Y_train, A, W, b, Z, learning_rate)
+        
+        if epoch % 100 == 0:
+            print(f'Epoch {epoch}, Loss: {loss}')
+    
+    return W, b
+
+# PART 9: Prediction Function
+def predict(X_test, W, b):
+    A, _ = forward_propagation(X_test, W, b)
+    predictions = A > 0.5  # Binary classification
+    return predictions
+
+# PART 10: Load Images and Preprocess
+def load_images(folder_path):
+    images = []
+    labels = []
+    for file_name in os.listdir(folder_path):
+        if file_name.endswith('.png'):
+            label = int(file_name.split('_')[1])  # Extract label from filename
+            img = Image.open(os.path.join(folder_path, file_name)).convert('L')  # Convert to grayscale
+            img = np.asarray(img).reshape(-1, 1) / 255.0  # Normalize and flatten
+            images.append(img)
+            labels.append(label)
+    return np.array(images), np.array(labels)
+
+# PART 11: Main Function
 if __name__ == "__main__":
-    X_train, y_train, X_test, y_test = load_mnist_data()
+    # Step 1: Generate the digit images for training and testing
+    generate_digit_images()
+    generate_test_images()
 
-    y_train_one_hot = one_hot_encode(y_train, 10)
-    y_test_one_hot = one_hot_encode(y_test, 10)
+    # Step 2: Load training data
+    X_train, Y_train = load_images('digits')  # You need to provide the path to the 'digits' folder
 
-    model = Perceptron(input_size=400, num_classes=10)
-
-    model.train(X_train[:1000], y_train_one_hot[:1000], epochs=1000, lr=0.01)
-
-    y_pred = [model.forward(x) for x in X_test[:10]] 
-    y_pred_labels = [np.argmax(pred) for pred in y_pred]
-
-    print("Predicted labels:", y_pred_labels)
-    print("True labels:", y_test[:10])
+    # Step 3: Train the perceptron
+    input_size = 400  # 20x20 images
+    output_size = 1  # For binary classification (digit recognition will need more outputs later)
+    
+    W, b = train_perceptron(X_train, Y_train, input_size, output_size)
+    
+    # Step 4: Test the perceptron on test data
+    X_test, _ = load_images('test_digits')  # Load test images
+    predictions = predict(X_test, W, b)
+    print(f'Predictions: {predictions}')
