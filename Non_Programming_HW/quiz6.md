@@ -113,4 +113,3 @@ class SimpleRNN(nn.Module):
    - Apply proper initialization
    - Consider bidirectional variants for better context
 
-This structured overview covers the essential aspects of RNNs while keeping the explanation accessible and practical.
